@@ -182,6 +182,17 @@ nav{background:var(--card);border-bottom:1px solid var(--border);padding:0 32px;
 
   <div class="highlight-box amber">4〜5月の動向：TLは26/2（237人）をピークに4月183人→5月150人と減少。Othersが3月39人→5月10人と急落。PPも3月177人から5月116人へ。JapaneseとOthersの落ち込みが両店共通の要因。</div>
 
+  <div class="card" style="margin-top:16px;">
+    <div class="card-title">3店舗合計 — 国籍構成比　月次推移</div>
+    <div class="card-note">各月の国籍別来店割合（100%積み上げ）</div>
+    <div class="chart-legend">
+      <span class="legend-item"><svg width="14" height="14"><rect width="14" height="14" rx="2" fill="#E8CC60"/></svg>Thai</span>
+      <span class="legend-item"><svg width="14" height="14"><rect width="14" height="14" rx="2" fill="#E07B3A"/></svg>Japanese</span>
+      <span class="legend-item"><svg width="14" height="14"><rect width="14" height="14" rx="2" fill="#4A9BB8"/></svg>The Others</span>
+    </div>
+    <div class="canvas-wrap tall"><canvas id="natPctChart"></canvas></div>
+  </div>
+
 
 
 
@@ -595,6 +606,65 @@ function makeLineLabelPlugin(id, unit, fmt){
 }
 
 // ④ 国籍月次推移
+function buildNatPctChart(){
+  const d = DATA.nat_trend.combined;
+  const pctThai = [], pctJP = [], pctOthers = [];
+  d.months.forEach((_,i) => {
+    const total = d.thai[i] + d.japanese[i] + d.others[i];
+    if(total === 0){ pctThai.push(null); pctJP.push(null); pctOthers.push(null); return; }
+    pctThai.push(Math.round(d.thai[i]/total*1000)/10);
+    pctJP.push(Math.round(d.japanese[i]/total*1000)/10);
+    pctOthers.push(Math.round(d.others[i]/total*1000)/10);
+  });
+
+  const pctLabelPlugin = {
+    id: 'pctLabel',
+    afterDatasetsDraw(chart){
+      const {ctx} = chart;
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      chart.data.datasets.forEach((ds, di) => {
+        chart.getDatasetMeta(di).data.forEach((bar, idx) => {
+          const val = ds.data[idx];
+          if(!val || val < 8) return;
+          const {x:bx, y:by, height:bh} = bar.getProps(['x','y','height'], true);
+          if(bh < 14) return;
+          ctx.font = '600 9px DM Sans,sans-serif';
+          ctx.fillStyle = di === 0 ? '#7A6200' : '#fff';
+          ctx.fillText(val.toFixed(1)+'%', bx, by + bh/2);
+        });
+      });
+      ctx.restore();
+    }
+  };
+
+  new Chart(document.getElementById('natPctChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: d.months,
+      datasets: [
+        {label:'Thai',       data:pctThai,   backgroundColor:'#E8CC60', stack:'s', borderRadius:0},
+        {label:'Japanese',   data:pctJP,     backgroundColor:'#E07B3A', stack:'s', borderRadius:0},
+        {label:'The Others', data:pctOthers, backgroundColor:'#4A9BB8', stack:'s', borderRadius:0}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index', intersect:false},
+      plugins:{legend:{display:false}, tooltip:{
+        backgroundColor:'rgba(30,30,30,0.88)',titleColor:'#fff',bodyColor:'#ccc',padding:8,
+        callbacks:{label:(item)=>` ${item.dataset.label}: ${item.raw===null?'—':item.raw.toFixed(1)+'%'}`}
+      }},
+      scales:{
+        x:{stacked:true, grid:{display:false}, ticks:{font:{size:10},maxRotation:45}},
+        y:{stacked:true, min:0, max:100, grid:{color:'rgba(0,0,0,0.05)'},
+           ticks:{font:{size:11}, callback:(v)=>v+'%'}}
+      }
+    },
+    plugins:[pctLabelPlugin]
+  });
+}
+
 function buildNatTrendChart(store, canvasId){
   const d = DATA.nat_trend[store];
   const totals = d.months.map((_,i)=>d.thai[i]+d.japanese[i]+d.others[i]);
@@ -849,6 +919,7 @@ window.addEventListener('load', function(){
   renderRepeat('all');
   renderTrend90('all');
   buildNatTrendChart('combined','natTrendCombined');
+  buildNatPctChart();
   buildNatTrendChart('tl','natTrendTL');
   buildNatTrendChart('pp','natTrendPP');
   buildNatAvgPriceChart();
